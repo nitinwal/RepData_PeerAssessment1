@@ -1,0 +1,171 @@
+---
+title: "PeerAssignment"
+author: "Nitin Agrawal"
+date: "Sunday, August 17, 2014"
+output: html_document
+---
+
+This is an R Markdown document. The purpose is to write the document shwing code and result. Use data provided by author, Mr. Roger D. Peng, from a personal activity monitoring device. 
+This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+==Assumtions 
+set working directory to directory forked from the rdpeng/RepData_PeerAssessment1
+In my case its nitinwal/RepData_PeerAssessment1 synced to local directory
+
+== Platform
+Windws 7 Enterprise SP 1
+
+=== Libs needed
+```{r}
+library(plyr)
+library(ggplot2)
+library(lattice)
+```
+
+## Unzip the "activity.zip" file  
+```{r}
+
+unzip("activity.zip")
+```
+
+## Read the "activity.csv" file  
+```{r}
+activity_dataframe <- read.csv("activity.csv", sep = ",")
+
+```
+
+## referene
+## http://stackoverflow.com/questions/1660124/how-to-group-columns-by-sum-in-r
+## http://www.diffen.com/difference/Mean_vs_Median
+
+```{r, echo=TRUE}
+activity_per_day <- ddply(activity_dataframe, .(date), summarise, 
+                          sum = sum(steps, na.rm = TRUE), 
+                          Mean = mean(steps, na.rm = TRUE),
+                          Median = median(steps, na.rm = TRUE))
+print(activity_per_day)
+hist(activity_per_day$sum, 
+     xlab="Steps per day",  
+     main="Steps Taken Per Day",
+     freq = TRUE,
+     include.lowest = TRUE,
+     col="red")
+mean_steps_taken_per_day <- mean(activity_per_day$sum)
+median_steps_taken_per_day <- median(activity_per_day$sum)
+
+print("Mean of Steps Taken Per Day = ")
+print(mean_steps_taken_per_day)
+
+print("Median of Steps Taken Per Day = ")
+print(median_steps_taken_per_day)
+
+
+
+```
+
+## Plot of  5-minute interval (x-axis) vs the average number of steps take  
+## reference 
+## http://stackoverflow.com/questions/14216279/different-colour-for-different-types-of-lines-using-xyplot
+## http://www.inside-r.org/packages/cran/plyr/docs/ddply
+```{r}
+avg_steps_per5min_perday <- ddply(activity_dataframe, .(interval), summarise, 
+                                  stepsMean = mean(steps, na.rm = TRUE),
+                                  stepsSum = sum(steps, na.rm = TRUE)
+                                  )
+
+
+xyplot(avg_steps_per5min_perday$stepsMean ~ avg_steps_per5min_perday$interval, 
+       type='l' )
+
+max_interval_list <- avg_steps_per5min_perday[ avg_steps_per5min_perday$stepsMean >= 
+                                            max(avg_steps_per5min_perday$stepsMean), ]
+
+interval_having_max_steps <- max_interval_list$interval[1]
+print("Interval Having Max Average Steps" )
+print(interval_having_max_steps)
+```
+
+## Imputing missing values
+## Total No. of rows with missing values NA
+## reference:
+## http://stackoverflow.com/questions/4862178/remove-rows-with-nas-in-data-frame
+```{r}
+activity_row.has.na <- apply(activity_dataframe, 1, function(x){any(is.na(x))})
+total_rows_with_na <- sum(activity_row.has.na)
+print("Total Rows having NA values :")
+print (total_rows_with_na)
+```
+## imput the missing values with mean for that time interval
+
+```{r}
+
+activity_dataframe_new <- data.frame(activity_dataframe)
+for( pos_index in 1:nrow(activity_dataframe)) {
+  if( is.na( activity_dataframe_new$steps[pos_index] ) ){
+    interval_val <- activity_dataframe_new$interval[pos_index]
+    selected_row <- avg_steps_per5min_perday[ avg_steps_per5min_perday$interval == interval_val, ]
+    activity_dataframe_new$steps[pos_index] <- selected_row$stepsMean[1]
+  }
+}
+
+```
+## Putting the histogram with fillied in values
+## Histogram with missin values
+
+```{r}
+activity_per_day_new <- ddply(activity_dataframe_new, .(date), 
+                              summarise, sum = sum(steps, na.rm = TRUE))
+hist(activity_per_day_new$sum, 
+     xlab="Steps per day",  
+     main="Steps Taken Per Day",
+     freq = TRUE,
+     include.lowest = TRUE,
+     col="red")
+mean_steps_taken_per_day_new <- mean(activity_per_day_new$sum)
+median_steps_taken_per_day_new <- median(activity_per_day_new$sum)
+
+print("Mean of Steps Taken Per Day New = ")
+print(mean_steps_taken_per_day_new)
+
+print("Median of Steps Taken Per Day = ")
+print(median_steps_taken_per_day_new)
+
+
+
+```
+=== Median and Mean changes before and after the data filled
+
+## reference
+## http://stackoverflow.com/questions/9251326/convert-data-frame-column-format-from-character-to-factor
+## reference
+## http://faculty.washington.edu/gyollin/docs/rLattice.pdf
+## http://datavoreconsulting.com/programming-tips/spacing-of-panel-figures-in-r/
+
+```{r}
+weekend_vec <- c("Sunday", "Saturday")
+for( each_item in 1: nrow(activity_dataframe_new)) {
+  result_vec <- weekdays(as.Date(activity_dataframe_new$date[each_item])) == weekend_vec
+if ( sum(result_vec) >= 1) {
+  activity_dataframe_new$Day[each_item] <- "Weekend"
+}
+else {
+  activity_dataframe_new$Day[each_item] <- "Weekday"
+}
+  
+}
+
+activity_dataframe_new$Day <- as.factor(activity_dataframe_new$Day)
+
+weekday_weekend_avg <- ddply(activity_dataframe_new, .(interval, Day), 
+                             summarise, stepsMean = mean(steps, na.rm = TRUE)                                                        
+                             )
+xyplot(weekday_weekend_avg$stepsMean ~ weekday_weekend_avg$interval | weekday_weekend_avg$Day, 
+       data=weekday_weekend_avg,
+       type = "l",
+       layout = c(1,2),
+       ylab = "Number of steps",
+       xlab  = "Interval"
+       )
+
+
+```
